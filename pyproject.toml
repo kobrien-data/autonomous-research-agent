@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = ["notebooks/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]   # E=style, F=pyflakes, I=isort
+ignore = ["E501"]           # ignore line-too-long
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
