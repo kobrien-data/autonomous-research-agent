@@ -1,32 +1,31 @@
 # ── Core agent framework ────────────────────────────────────
-langgraph==1.2.4                  # Multi-agent state graphs + ReAct loop
-langchain-core==1.4.0             # Base abstractions (tools, messages, prompts)
-langchain==0.3.0                  # High-level chains and agent utilities
-langchain-community==0.3.0        # Community integrations (PDF loaders etc.)
+langgraph==1.2.4
+langchain-core==1.4.0
+langchain==1.3.4
  
 # ── LLM client (vLLM / OpenAI-compatible) ──────────────────
-openai==1.45.0                    # OpenAI-compatible client — points at vLLM endpoint
+openai==1.45.0
  
 # ── Tools ───────────────────────────────────────────────────
-langchain-tavily==0.1.6           # Tavily web search tool (LangChain integration)
-pymupdf==1.27.2                   # PDF parsing (also importable as `fitz`)
-huggingface-hub==1.15.0           # HuggingFace Hub model + dataset search
+langchain-tavily==0.2.18
+pymupdf==1.27.2
+huggingface-hub==1.15.0
  
 # ── MCP (Model Context Protocol) ───────────────────────────
-mcp==1.27.2                       # MCP Python SDK — SQLite server + client
+mcp==1.27.2
  
 # ── API layer ───────────────────────────────────────────────
-fastapi[standard]==0.115.0        # REST API + auto docs
-uvicorn[standard]==0.30.6         # ASGI server
-sse-starlette==2.1.3              # Server-sent events for streaming agent trace
-pydantic==2.11.0                  # Request/response validation (v2)
-python-multipart==0.0.9           # Required by FastAPI for form data
-httpx==0.27.2                     # Async HTTP client (vLLM calls + PDF fetching)
+fastapi[standard]==0.115.0
+uvicorn[standard]==0.49.0
+sse-starlette==2.1.3
+pydantic==2.11.0
+python-multipart==0.0.9
+httpx==0.27.2
  
 # ── UI ──────────────────────────────────────────────────────
-streamlit==1.45.1                 # Chat interface + reasoning trace panel
+streamlit==1.45.1
  
 # ── Config & utilities ──────────────────────────────────────
-python-dotenv==1.0.1              # Load .env files
-xxhash==3.5.0                     # Fast hashing (LangGraph state dependency)
+python-dotenv==1.0.1
+xxhash==3.5.0
 
