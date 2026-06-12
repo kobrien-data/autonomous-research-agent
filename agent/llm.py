@@ -1,7 +1,4 @@
 import os
-# agent/llm.py
-
-import os
 import json
 from pathlib import Path
 from langchain_core.language_models import BaseChatModel
@@ -22,11 +19,11 @@ class MockLLMClient(BaseChatModel):
     
 def _get_vllm_client() -> ChatOpenAI:
     return ChatOpenAI(
-        model=os.getenv("VLLM_MODEL_NAME", "mistralal/Mistral-7B-Instruct-v0.3"),
+        model=os.getenv("VLLM_MODEL_NAME"),
         base_url=os.getenv("VllM_BASE_URL"),
         api_key=os.getenv("VLLM_API_KEY"),
-        temperature=float(os.getenv("VLLM_TEMPERATURE", "0.7")),
-        max_tokens=int(os.getenv("VLLM_MAX_TOKENS", "1000"))
+        temperature=float(os.getenv("VLLM_TEMPERATURE")),
+        max_tokens=int(os.getenv("VLLM_MAX_TOKENS"))
     )
 
 
