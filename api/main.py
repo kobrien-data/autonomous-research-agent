@@ -1,4 +1,3 @@
-import os
 from fastapi import FastAPI
 
 app = FastAPI(title="Autonomous Research Agent API")
