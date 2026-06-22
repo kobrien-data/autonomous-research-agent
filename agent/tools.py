@@ -1,32 +1,19 @@
 import json
 from enum import Enum
+from errors import ErrorCode, ToolError
 
 import requests.exceptions
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel
 
-MAX_QUERY_LENGTH = 400
+MAX_QUERY_LENGTH = 500
 
 _client = TavilySearch(
     max_results=5,
     search_depth="advanced",
     include_answer=True,
 )
-
-
-class ErrorCode(str, Enum):
-    RATE_LIMIT = "rate_limit"
-    EMPTY_RESULTS = "empty_results"
-    QUERY_TOO_LONG = "query_too_long"
-    TIMEOUT = "timeout"
-    UNKNOWN = "unknown"
-
-
-class ToolError(BaseModel):
-    error: bool = True
-    code: ErrorCode
-    message: str
 
 
 @tool
@@ -68,3 +55,5 @@ def web_search(query: str) -> str:
         ).model_dump_json()
 
     return json.dumps(results)
+
+
