@@ -7,6 +7,7 @@ class ErrorCode(str, Enum):
     QUERY_TOO_LONG = "query_too_long"
     TIMEOUT = "timeout"
     UNKNOWN = "unknown"
+    FETCH_FAILED= "fetch_failed"
 
 
 class ToolError(BaseModel):
