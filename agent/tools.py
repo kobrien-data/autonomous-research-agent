@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from pathlib import Path
-from errors import ErrorCode, ToolError
+from errors import ErrorCode, ToolError, ToolException
 
 import requests
 from langchain_core.tools import tool
@@ -58,6 +58,7 @@ def web_search(query: str) -> str:
         ).model_dump_json()
 
     return json.dumps(results)
+
 class PDFPage(BaseModel):
     page_number: int
     text: str
@@ -79,22 +80,22 @@ class PDFParser:
             resp.raise_for_status()
             return resp.content
         except requests.exceptions.Timeout:
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.TIMEOUT,
                 message="Search timed out",
             ).model_dump_json()
         except requests.exceptions.ConnectionError:
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.CONNECTION_ERROR,
                 message="Failed to connect. Try again"
             ).model_dump_json()
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
-                return ToolError(
+                raise ToolError(
                     code=ErrorCode.FETCH_FAILED,
                     message="The current file can't be fetched. Please try another file.",
                 ).model_dump_json()
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.UNKNOWN,
                 message=str(e)).model_dump_json()
 
@@ -103,17 +104,17 @@ class PDFParser:
         try:
             return Path(source).read_bytes()
         except FileNotFoundError:
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.FILE_NOT_FOUND,
                 message=f"File not found at {source}. Please try another file."
             ).model_dump_json()
         except IsADirectoryError:
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.FILE_NOT_FOUND,
                 message=f"{source} is a directory. Please try again with a file."
             ).model_dump_json()
         except OSError as e:
-            return ToolError(
+            raise ToolError(
                 code=ErrorCode.FETCH_FAILED,
                 message=str(e),
             ).model_dump_json()
@@ -127,6 +128,14 @@ class PDFParser:
     def score_chunks(self, query: str, chunks: list[Chunk]) -> list[ScoredChunk]:
         pass
 
-    def run(self, source: str, query: str) -> list[ScoredChunk]:
-        # move the error logic from fetch to here and wrap the fetch calls in try except blocks
-        pass
+    def run(self, source: str, query: str) -> list[ScoredChunk] | str:
+        try:
+            if source.startswith(("http://", "https://")):
+                file_bytes = self._fetch_from_url(source)
+            else:
+                file_bytes = self._fetch_from_local(source)
+            pages = self.extract_text(file_bytes)
+            chunks = self.chunk(pages)
+            return self.score_chunks(query, chunks)
+        except ToolException as e:
+            return e.error.model_dump_json()

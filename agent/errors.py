@@ -16,3 +16,9 @@ class ToolError(BaseModel):
     error: bool = True
     code: ErrorCode
     message: str
+
+class ToolException(Exception):
+    """Raised when a tool operation fails; carries a structured ToolError."""
+    def __init__(self, error: ToolError):
+        self.error = error
+        super().__init__(error.message)
