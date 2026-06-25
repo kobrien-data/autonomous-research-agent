@@ -58,9 +58,21 @@ def web_search(query: str) -> str:
         ).model_dump_json()
 
     return json.dumps(results)
+class PDFPage(BaseModel):
+    page_number: int
+    text: str
+
+class Chunk(BaseModel):
+    text: str
+    page_number: int
+    chunk_index: int
+
+class ScoredChunk(BaseModel):
+    chunk: Chunk
+    score: float
 
 class PDFParser:
-    def _fetch_from_url(self, source: str):
+    def _fetch_from_url(self, source: str) -> bytes:
         """Fetch a PDF from a URL"""
         try:
             resp = requests.get(source, timeout=(10, 30))
@@ -84,9 +96,9 @@ class PDFParser:
                 ).model_dump_json()
             return ToolError(
                 code=ErrorCode.UNKNOWN,
-                message=str(e))
+                message=str(e)).model_dump_json()
 
-    def _fetch_from_local(self, source: str):
+    def _fetch_from_local(self, source: str) -> bytes:
         """Fetch a PDF from a file provided"""
         try:
             return Path(source).read_bytes()
@@ -95,21 +107,26 @@ class PDFParser:
                 code=ErrorCode.FILE_NOT_FOUND,
                 message=f"File not found at {source}. Please try another file."
             ).model_dump_json()
+        except IsADirectoryError:
+            return ToolError(
+                code=ErrorCode.FILE_NOT_FOUND,
+                message=f"{source} is a directory. Please try again with a file."
+            ).model_dump_json()
         except OSError as e:
             return ToolError(
                 code=ErrorCode.FETCH_FAILED,
                 message=str(e),
             ).model_dump_json()
 
-    def extract_text(self, file_bytes: bytes):
+    def extract_text(self, file_bytes: bytes) -> list[PDFPage]:
         pass
 
-    def chunk(self, text: str):
+    def chunk(self, pages: list[PDFPage]) -> list[Chunk]:
         pass
 
-    def score_chunks(self, query: str):
+    def score_chunks(self, query: str, chunks: list[Chunk]) -> list[ScoredChunk]:
         pass
 
-    def run():
+    def run(self, source: str, query: str) -> list[ScoredChunk]:
         # move the error logic from fetch to here and wrap the fetch calls in try except blocks
         pass
