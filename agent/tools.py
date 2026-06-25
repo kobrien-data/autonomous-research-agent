@@ -71,6 +71,11 @@ class PDFParser:
                 code=ErrorCode.TIMEOUT,
                 message="Search timed out",
             ).model_dump_json()
+        except requests.exceptions.ConnectionError:
+            return ToolError(
+                code=ErrorCode.CONNECTION_ERROR,
+                message="Failed to connect. Try again"
+            ).model_dump_json()
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
                 return ToolError(
@@ -83,7 +88,18 @@ class PDFParser:
 
     def _fetch_from_local(self, source: str):
         """Fetch a PDF from a file provided"""
-        return Path(source).read_bytes()
+        try:
+            return Path(source).read_bytes()
+        except FileNotFoundError:
+            return ToolError(
+                code=ErrorCode.FILE_NOT_FOUND,
+                message=f"File not found at {source}. Please try another file."
+            ).model_dump_json()
+        except OSError as e:
+            return ToolError(
+                code=ErrorCode.FETCH_FAILED,
+                message=str(e),
+            ).model_dump_json()
 
     def extract_text(self, file_bytes: bytes):
         pass
@@ -95,4 +111,5 @@ class PDFParser:
         pass
 
     def run():
+        # move the error logic from fetch to here and wrap the fetch calls in try except blocks
         pass

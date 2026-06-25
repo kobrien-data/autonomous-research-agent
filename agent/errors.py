@@ -8,6 +8,8 @@ class ErrorCode(str, Enum):
     TIMEOUT = "timeout"
     UNKNOWN = "unknown"
     FETCH_FAILED= "fetch_failed"
+    CONNECTION_ERROR = "connection_error"
+    FILE_NOT_FOUND = "file_not_found"
 
 
 class ToolError(BaseModel):
