@@ -10,6 +10,8 @@ class ErrorCode(str, Enum):
     FETCH_FAILED= "fetch_failed"
     CONNECTION_ERROR = "connection_error"
     FILE_NOT_FOUND = "file_not_found"
+    SCANNED_PDF_ERROR = "scanned_pdf_error"
+    PASSWORD_PROTECTED = "password_protected"
 
 
 class ToolError(BaseModel):

@@ -11,6 +11,11 @@ import pymupdf
 
 MAX_QUERY_LENGTH = 500
 
+# Word-based proxy for ~500-token chunks with ~50-token overlap
+# (English averages ~1.3 tokens/word).
+CHUNK_SIZE_WORDS = 375
+CHUNK_OVERLAP_WORDS = 37
+
 _client = TavilySearch(
     max_results=5,
     search_depth="advanced",
@@ -126,15 +131,45 @@ class PDFParser:
         """extract text from bytes and append each page to a List"""
         pages = []
         with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
+            if doc.needs_pass:
+                raise ToolException(ToolError(
+                    code=ErrorCode.PASSWORD_PROTECTED,
+                    message="This PDF is password protected and can't be parsed."
+                ))
             for i, page in enumerate(doc, start=1):
                 text = page.get_text()
                 pages.append(
                     PDFPage(page_number=i, text=text, word_count=len(text.split()))
                 )
+        total_words = sum(page.word_count for page in pages)
+        if total_words < 200:
+            raise ToolException(ToolError(
+                code=ErrorCode.SCANNED_PDF_ERROR,
+                message="Scanned PDF documents can't be parsed"
+            ))
         return pages
 
     def chunk(self, pages: list[PDFPage]) -> list[Chunk]:
-        pass
+        """Split each page into ~500-token chunks (~50-token overlap) using a
+        word-count proxy. chunk_index is sequential across the whole document."""
+        step = CHUNK_SIZE_WORDS - CHUNK_OVERLAP_WORDS
+        chunks: list[Chunk] = []
+        chunk_index = 0
+        for page in pages:
+            words = page.text.split()
+            start = 0
+            while start < len(words):
+                window = words[start : start + CHUNK_SIZE_WORDS]
+                chunks.append(Chunk(
+                    text=" ".join(window),
+                    page_number=page.page_number,
+                    chunk_index=chunk_index,
+                ))
+                chunk_index += 1
+                if start + CHUNK_SIZE_WORDS >= len(words):
+                    break
+                start += step
+        return chunks
 
     def score_chunks(self, query: str, chunks: list[Chunk]) -> list[ScoredChunk]:
         pass
