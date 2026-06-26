@@ -7,6 +7,7 @@ import requests
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel
+import pymupdf
 
 MAX_QUERY_LENGTH = 500
 
@@ -62,6 +63,7 @@ def web_search(query: str) -> str:
 class PDFPage(BaseModel):
     page_number: int
     text: str
+    word_count: int
 
 class Chunk(BaseModel):
     text: str
@@ -79,48 +81,57 @@ class PDFParser:
             resp = requests.get(source, timeout=(10, 30))
             resp.raise_for_status()
             return resp.content
-        except requests.exceptions.Timeout:
-            raise ToolError(
+        except requests.exceptions.Timeout as e:
+            raise ToolException(ToolError(
                 code=ErrorCode.TIMEOUT,
                 message="Search timed out",
-            ).model_dump_json()
-        except requests.exceptions.ConnectionError:
-            raise ToolError(
+            )) from e
+        except requests.exceptions.ConnectionError as e:
+            raise ToolException(ToolError(
                 code=ErrorCode.CONNECTION_ERROR,
-                message="Failed to connect. Try again"
-            ).model_dump_json()
+                message="Failed to connect. Try again",
+            )) from e
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
-                raise ToolError(
+                raise ToolException(ToolError(
                     code=ErrorCode.FETCH_FAILED,
                     message="The current file can't be fetched. Please try another file.",
-                ).model_dump_json()
-            raise ToolError(
+                )) from e
+            raise ToolException(ToolError(
                 code=ErrorCode.UNKNOWN,
-                message=str(e)).model_dump_json()
+                message=str(e),
+            )) from e
 
     def _fetch_from_local(self, source: str) -> bytes:
         """Fetch a PDF from a file provided"""
         try:
             return Path(source).read_bytes()
-        except FileNotFoundError:
-            raise ToolError(
+        except FileNotFoundError as e:
+            raise ToolException(ToolError(
                 code=ErrorCode.FILE_NOT_FOUND,
-                message=f"File not found at {source}. Please try another file."
-            ).model_dump_json()
-        except IsADirectoryError:
-            raise ToolError(
+                message=f"File not found at {source}. Please try another file.",
+            )) from e
+        except IsADirectoryError as e:
+            raise ToolException(ToolError(
                 code=ErrorCode.FILE_NOT_FOUND,
-                message=f"{source} is a directory. Please try again with a file."
-            ).model_dump_json()
+                message=f"{source} is a directory. Please try again with a file.",
+            )) from e
         except OSError as e:
-            raise ToolError(
+            raise ToolException(ToolError(
                 code=ErrorCode.FETCH_FAILED,
                 message=str(e),
-            ).model_dump_json()
+            )) from e
 
     def extract_text(self, file_bytes: bytes) -> list[PDFPage]:
-        pass
+        """extract text from bytes and append each page to a List"""
+        pages = []
+        with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
+            for i, page in enumerate(doc, start=1):
+                text = page.get_text()
+                pages.append(
+                    PDFPage(page_number=i, text=text, word_count=len(text.split()))
+                )
+        return pages
 
     def chunk(self, pages: list[PDFPage]) -> list[Chunk]:
         pass
