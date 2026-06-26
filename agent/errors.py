@@ -7,9 +7,18 @@ class ErrorCode(str, Enum):
     QUERY_TOO_LONG = "query_too_long"
     TIMEOUT = "timeout"
     UNKNOWN = "unknown"
+    FETCH_FAILED= "fetch_failed"
+    CONNECTION_ERROR = "connection_error"
+    FILE_NOT_FOUND = "file_not_found"
 
 
 class ToolError(BaseModel):
     error: bool = True
     code: ErrorCode
     message: str
+
+class ToolException(Exception):
+    """Raised when a tool operation fails; carries a structured ToolError."""
+    def __init__(self, error: ToolError):
+        self.error = error
+        super().__init__(error.message)
