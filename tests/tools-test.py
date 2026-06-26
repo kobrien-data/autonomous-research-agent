@@ -7,6 +7,7 @@ import requests.exceptions
 import agent.tools as tools
 from agent.tools import ErrorCode, web_search
 
+
 #https://docs.python.org/3/library/unittest.mock.html
 def fake_client(monkeypatch, *, result=None, exc=None):
     """Swap the module-global Tavily client for a MagicMock.
