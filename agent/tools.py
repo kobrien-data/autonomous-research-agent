@@ -1,16 +1,12 @@
 import json
-import math
-from enum import Enum
 from pathlib import Path
-from agent.errors import ErrorCode, ToolError, ToolException
-from agent.llm import get_embeddings_client
 
+import pymupdf
 import requests
-from langchain_core.embeddings import Embeddings
+from errors import ErrorCode, ToolError, ToolException
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel
-import pymupdf
 
 MAX_QUERY_LENGTH = 500
 

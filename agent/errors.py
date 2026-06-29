@@ -1,5 +1,7 @@
 from enum import Enum
+
 from pydantic import BaseModel
+
 
 class ErrorCode(str, Enum):
     RATE_LIMIT = "rate_limit"
