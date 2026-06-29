@@ -1,11 +1,13 @@
+import hashlib
 import json
 import os
 from pathlib import Path
 
+from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 
 class MockLLMClient(BaseChatModel):
@@ -35,3 +37,42 @@ def get_llm_client() -> BaseChatModel:
     if backend == "vllm":
         return _get_vllm_client()
     return MockLLMClient()
+
+
+class MockEmbeddings(Embeddings):
+    """Deterministic, dependency-free embedding for tests.
+
+    Hashes each token into a fixed-dimension bag-of-words vector, so texts that
+    share vocabulary land closer in cosine space. Not semantically meaningful,
+    but stable and good enough to exercise the scoring/ranking path.
+    """
+
+    dim: int = 256
+
+    def _embed(self, text: str) -> list[float]:
+        vec = [0.0] * self.dim
+        for token in text.lower().split():
+            bucket = int(hashlib.md5(token.encode()).hexdigest(), 16) % self.dim
+            vec[bucket] += 1.0
+        return vec
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed(text)
+
+
+def _get_vllm_embeddings() -> OpenAIEmbeddings:
+    return OpenAIEmbeddings(
+        model=os.getenv("EMBEDDING_MODEL_NAME"),
+        base_url=os.getenv("EMBEDDING_BASE_URL"),
+        api_key=os.getenv("EMBEDDING_API_KEY"),
+    )
+
+
+def get_embeddings_client() -> Embeddings:
+    backend = os.getenv("EMBEDDING_BACKEND", "mock")
+    if backend == "vllm":
+        return _get_vllm_embeddings()
+    return MockEmbeddings()

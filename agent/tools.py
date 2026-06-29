@@ -10,6 +10,28 @@ from pydantic import BaseModel
 
 MAX_QUERY_LENGTH = 500
 
+# Word-based proxy for ~500-token chunks with ~50-token overlap
+# (English averages ~1.3 tokens/word).
+CHUNK_SIZE_WORDS = 375
+CHUNK_OVERLAP_WORDS = 37
+
+# Number of top-ranked chunks score_chunks returns by default. Caps how much
+# context flows downstream into the LLM's window.
+TOP_K_DEFAULT = 8
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """Cosine similarity of two equal-length vectors, clamped to [0.0, 1.0].
+
+    Negative similarity means unrelated, so we floor it at 0 to keep the score
+    interpretable as 0 (unrelated) .. 1 (identical)."""
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return max(0.0, dot / (norm_a * norm_b))
+
 _client = TavilySearch(
     max_results=5,
     search_depth="advanced",
@@ -74,6 +96,11 @@ class ScoredChunk(BaseModel):
     score: float
 
 class PDFParser:
+    def __init__(self, embeddings: Embeddings | None = None):
+        # Injectable so tests can pass a deterministic mock; defaults to the
+        # backend selected by EMBEDDING_BACKEND.
+        self._embeddings = embeddings or get_embeddings_client()
+
     def _fetch_from_url(self, source: str) -> bytes:
         """Fetch a PDF from a URL"""
         try:
@@ -125,18 +152,62 @@ class PDFParser:
         """extract text from bytes and append each page to a List"""
         pages = []
         with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
+            if doc.needs_pass:
+                raise ToolException(ToolError(
+                    code=ErrorCode.PASSWORD_PROTECTED,
+                    message="This PDF is password protected and can't be parsed."
+                ))
             for i, page in enumerate(doc, start=1):
                 text = page.get_text()
                 pages.append(
                     PDFPage(page_number=i, text=text, word_count=len(text.split()))
                 )
+        total_words = sum(page.word_count for page in pages)
+        if total_words < 200:
+            raise ToolException(ToolError(
+                code=ErrorCode.SCANNED_PDF_ERROR,
+                message="Scanned PDF documents can't be parsed"
+            ))
         return pages
 
     def chunk(self, pages: list[PDFPage]) -> list[Chunk]:
-        pass
+        """Split each page into ~500-token chunks (~50-token overlap) using a
+        word-count proxy. chunk_index is sequential across the whole document."""
+        step = CHUNK_SIZE_WORDS - CHUNK_OVERLAP_WORDS
+        chunks: list[Chunk] = []
+        chunk_index = 0
+        for page in pages:
+            words = page.text.split()
+            start = 0
+            while start < len(words):
+                window = words[start : start + CHUNK_SIZE_WORDS]
+                chunks.append(Chunk(
+                    text=" ".join(window),
+                    page_number=page.page_number,
+                    chunk_index=chunk_index,
+                ))
+                chunk_index += 1
+                if start + CHUNK_SIZE_WORDS >= len(words):
+                    break
+                start += step
+        return chunks
 
-    def score_chunks(self, query: str, chunks: list[Chunk]) -> list[ScoredChunk]:
-        pass
+    def score_chunks(
+        self, query: str, chunks: list[Chunk], top_k: int = TOP_K_DEFAULT
+    ) -> list[ScoredChunk]:
+        """Rank chunks by semantic relevance to the query via embedding cosine
+        similarity. Returns the top_k chunks sorted by descending score."""
+        if not chunks:
+            return []
+        query_vec = self._embeddings.embed_query(query)
+        # Embed all chunk texts in one batched call rather than per-chunk.
+        chunk_vecs = self._embeddings.embed_documents([c.text for c in chunks])
+        scored = [
+            ScoredChunk(chunk=chunk, score=_cosine(query_vec, vec))
+            for chunk, vec in zip(chunks, chunk_vecs)
+        ]
+        scored.sort(key=lambda s: s.score, reverse=True)
+        return scored[:top_k]
 
     def run(self, source: str, query: str) -> list[ScoredChunk] | str:
         try:
