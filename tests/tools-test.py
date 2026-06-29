@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 import pytest
 import requests.exceptions
 
+import agent.errors as errors
+import agent.llm as llm
 import agent.tools as tools
 from agent.tools import ErrorCode, web_search
 

@@ -1,9 +1,12 @@
 import json
+import math
 from enum import Enum
 from pathlib import Path
-from errors import ErrorCode, ToolError, ToolException
+from agent.errors import ErrorCode, ToolError, ToolException
+from agent.llm import get_embeddings_client
 
 import requests
+from langchain_core.embeddings import Embeddings
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel
@@ -15,6 +18,23 @@ MAX_QUERY_LENGTH = 500
 # (English averages ~1.3 tokens/word).
 CHUNK_SIZE_WORDS = 375
 CHUNK_OVERLAP_WORDS = 37
+
+# Number of top-ranked chunks score_chunks returns by default. Caps how much
+# context flows downstream into the LLM's window.
+TOP_K_DEFAULT = 8
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """Cosine similarity of two equal-length vectors, clamped to [0.0, 1.0].
+
+    Negative similarity means unrelated, so we floor it at 0 to keep the score
+    interpretable as 0 (unrelated) .. 1 (identical)."""
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return max(0.0, dot / (norm_a * norm_b))
 
 _client = TavilySearch(
     max_results=5,
@@ -80,6 +100,11 @@ class ScoredChunk(BaseModel):
     score: float
 
 class PDFParser:
+    def __init__(self, embeddings: Embeddings | None = None):
+        # Injectable so tests can pass a deterministic mock; defaults to the
+        # backend selected by EMBEDDING_BACKEND.
+        self._embeddings = embeddings or get_embeddings_client()
+
     def _fetch_from_url(self, source: str) -> bytes:
         """Fetch a PDF from a URL"""
         try:
@@ -171,8 +196,22 @@ class PDFParser:
                 start += step
         return chunks
 
-    def score_chunks(self, query: str, chunks: list[Chunk]) -> list[ScoredChunk]:
-        pass
+    def score_chunks(
+        self, query: str, chunks: list[Chunk], top_k: int = TOP_K_DEFAULT
+    ) -> list[ScoredChunk]:
+        """Rank chunks by semantic relevance to the query via embedding cosine
+        similarity. Returns the top_k chunks sorted by descending score."""
+        if not chunks:
+            return []
+        query_vec = self._embeddings.embed_query(query)
+        # Embed all chunk texts in one batched call rather than per-chunk.
+        chunk_vecs = self._embeddings.embed_documents([c.text for c in chunks])
+        scored = [
+            ScoredChunk(chunk=chunk, score=_cosine(query_vec, vec))
+            for chunk, vec in zip(chunks, chunk_vecs)
+        ]
+        scored.sort(key=lambda s: s.score, reverse=True)
+        return scored[:top_k]
 
     def run(self, source: str, query: str) -> list[ScoredChunk] | str:
         try:
