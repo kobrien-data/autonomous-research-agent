@@ -8,26 +8,41 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from pydantic import SecretStr
+
+# Repo-relative so the fixture resolves no matter the working directory.
+MOCK_RESPONSES_PATH = (
+    Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "mock_responses.json"
+)
+
+
+def _require_env(name: str) -> str:
+    """Read a required env var, failing loudly if it's missing."""
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Environment variable {name} must be set for this backend.")
+    return value
 
 
 class MockLLMClient(BaseChatModel):
     @property
-    def llm_type(self) -> str:
+    def _llm_type(self) -> str:
         return "mock"
+
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
-        fixture_path = Path("/tests/fixtures/mock_responses.json")
-        responses = json.loads(fixture_path.read_text())
+        responses = json.loads(MOCK_RESPONSES_PATH.read_text())
         content = responses[0]["content"]
         response = AIMessage(content=content)
-        return ChatResult(generation=[ChatGeneration(message=response)])
-    
+        return ChatResult(generations=[ChatGeneration(message=response)])
+
+
 def _get_vllm_client() -> ChatOpenAI:
     return ChatOpenAI(
-        model=os.getenv("VLLM_MODEL_NAME"),
-        base_url=os.getenv("VllM_BASE_URL"),
-        api_key=os.getenv("VLLM_API_KEY"),
-        temperature=float(os.getenv("VLLM_TEMPERATURE")),
-        max_tokens=int(os.getenv("VLLM_MAX_TOKENS"))
+        model=_require_env("VLLM_MODEL_NAME"),
+        base_url=_require_env("VLLM_BASE_URL"),
+        api_key=SecretStr(_require_env("VLLM_API_KEY")),
+        temperature=float(os.getenv("VLLM_TEMPERATURE", "0.7")),
+        max_completion_tokens=int(os.getenv("VLLM_MAX_TOKENS", "1024")),
     )
 
 
@@ -65,9 +80,9 @@ class MockEmbeddings(Embeddings):
 
 def _get_vllm_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
-        model=os.getenv("EMBEDDING_MODEL_NAME"),
-        base_url=os.getenv("EMBEDDING_BASE_URL"),
-        api_key=os.getenv("EMBEDDING_API_KEY"),
+        model=_require_env("EMBEDDING_MODEL_NAME"),
+        base_url=_require_env("EMBEDDING_BASE_URL"),
+        api_key=SecretStr(_require_env("EMBEDDING_API_KEY")),
     )
 
 
