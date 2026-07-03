@@ -1,0 +1,5 @@
+[
+  {
+    "content": "This is a scripted response from the mock LLM client. Use it to exercise the agent pipeline without a GPU."
+  }
+]
