@@ -2,6 +2,7 @@ import ast
 import json
 import math
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -361,9 +362,10 @@ def _apply_resource_limits() -> None:
     """Cap CPU time and memory in the child process (preexec_fn)."""
     import resource
 
-    resource.setrlimit(
-        resource.RLIMIT_CPU, (EXEC_TIMEOUT_SECONDS, EXEC_TIMEOUT_SECONDS)
-    )
+    # One second looser than the wall-clock timeout so subprocess.run's
+    # TimeoutExpired fires first; the kernel CPU limit is only a backstop.
+    cpu_limit = EXEC_TIMEOUT_SECONDS + 1
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit))
     try:
         resource.setrlimit(
             resource.RLIMIT_AS, (EXEC_MEMORY_LIMIT_BYTES, EXEC_MEMORY_LIMIT_BYTES)
@@ -426,6 +428,16 @@ def run_python(code: str) -> str:
 
     stdout = completed.stdout[:MAX_OUTPUT_CHARS]
     stderr = completed.stderr[:MAX_OUTPUT_CHARS]
+    if completed.returncode == -signal.SIGXCPU:
+        # Killed by the RLIMIT_CPU backstop rather than the wall-clock timeout.
+        return ToolError(
+            code=ErrorCode.TIMEOUT,
+            message=(
+                f"Execution exceeded the CPU limit and was killed. "
+                f"Partial stdout: {stdout}"
+            ),
+            tool_name="run_python",
+        ).model_dump_json()
     if completed.returncode != 0:
         return ToolError(
             code=ErrorCode.EXECUTION_FAILED,
