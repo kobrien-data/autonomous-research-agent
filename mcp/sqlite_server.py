@@ -1,12 +1,11 @@
-import sqlite3
 import json
 import logging
 import os
+import sqlite3
 from pathlib import Path
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.prompts.base import UserMessage, Message
 
 # MCP clients spawn this server from an arbitrary cwd, so resolve .env
 # relative to this file rather than the working directory
