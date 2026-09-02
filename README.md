@@ -11,6 +11,8 @@
 ![vLLM](https://img.shields.io/badge/vLLM-inference-FFB000)
 ![Docker](https://img.shields.io/badge/Docker-deploy-2496ED?logo=docker&logoColor=white)
 
+**Status:** in active development — tooling and persistence layers built and mock-tested; live agent loop in progress [Roadmap](#roadmap)
+
 ## Overview
 
 **Autonomous Research Agent** is a multi-agent research system that takes a
@@ -45,7 +47,9 @@ ships as **Docker** containers and can be brought up with a single `docker compo
 
 ## Architecture
 
-> _TODO_
+<p align="center">
+  <img src="docs/agent-social-preview.png" alt="Multi-agent research system architecture" width="800">
+</p>
 
 ## Getting Started
 
@@ -78,14 +82,30 @@ The UI waits for the API health check to pass before starting.
 uv run pytest tests/tools-test.py -v
 ```
 
-## Usage
-
-> _TODO_
-
 ## Roadmap
 
-> _TODO_
+This project is under active development. The tooling and persistence layers are
+built and mock-tested; the live multi-agent loop is the current focus.
+
+**Done**
+- Project scaffold, pinned dependencies, Docker Compose stack, and CI (ruff/mypy/pytest on every push)
+- Mock LLM client and vLLM HTTP client wrapper (OpenAI-compatible, retry + streaming): lets the whole system be built and tested with zero GPU cost
+- All four agent tools, each independently unit-tested against mocks with a shared `ToolError` schema:
+  web search (Tavily), PDF parsing + chunking (PyMuPDF), sandboxed code executor, HuggingFace Hub search
+- SQLite schema for message history, token usage, and sessions
+- MCP SQLite server (stdio / JSON-RPC) exposing persistence tools to the database agent
+
+**In progress**
+- MCP client wrapper and the database agent that persists history and token/cost data via MCP
+- FastAPI skeleton (`/query`, `/history`, `/health`, `/stats`) wired end-to-end against the mock client
+
+**Planned**
+- RunPod + vLLM deployment: serve the Mistral and DeepSeek-Coder models, switch the client from mock to live
+- Single ReAct agent end-to-end, then the supervisor + four specialist agents with LangGraph handoffs and a shared message channel
+- SSE streaming, the Streamlit chat + reasoning-trace UI, and a live cost/token dashboard
+- A 20-question evaluation benchmark with an LLM-as-judge harness, and a single-agent vs multi-agent comparison
+- Architecture Decision Records covering the vLLM, LangGraph, MCP, and SSE choices
 
 ## License
 
-> _TODO_
+MIT — see [LICENSE](LICENSE) for details.
